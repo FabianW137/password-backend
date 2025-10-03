@@ -16,6 +16,7 @@ import java.io.ByteArrayOutputStream;
 import java.security.Key;
 import java.time.Duration;
 import java.util.*;
+import org.apache.commons.codec.binary.Base32;
 
 @RestController
 @RequestMapping("/api")
@@ -41,7 +42,7 @@ public class ApiController {
     KeyGenerator keyGen = KeyGenerator.getInstance(TimeBasedOneTimePasswordGenerator.TOTP_ALGORITHM_HMAC_SHA256);
     keyGen.init(256);
     Key key = keyGen.generateKey();
-    String secretB32 = org.apache.commons.codec.binary.Base32.encodeBase32String(key.getEncoded()).replace("=", "");
+    String secretB32 = new Base32().encodeToString(key.getEncoded()).replace("=", "");
     u.setTotpSecret(secretB32);
     users.save(u);
 
@@ -77,12 +78,12 @@ public class ApiController {
   public ResponseEntity<?> totp(@RequestBody TotpReq req) throws Exception {
     var parsed = jwt.verify(req.tmpToken());
     if (!"tmp".equals(parsed.getBody().get("stage"))) return ResponseEntity.status(401).body("Invalid stage");
-    UUID uid = UUID.fromString(parsed.getBody().get("uid", String.class));
+    java.util.UUID uid = java.util.UUID.fromString(parsed.getBody().get("uid", String.class));
     var u = users.findById(uid).orElseThrow();
     var totp = new TimeBasedOneTimePasswordGenerator(Duration.ofSeconds(30), 6, TimeBasedOneTimePasswordGenerator.TOTP_ALGORITHM_HMAC_SHA256);
-    byte[] secretBytes = new org.apache.commons.codec.binary.Base32().decode(u.getTotpSecret());
+    byte[] secretBytes = new Base32().decode(u.getTotpSecret());
     var key = new javax.crypto.spec.SecretKeySpec(secretBytes, "HmacSHA256");
-    int now = totp.generateOneTimePassword(key, new Date());
+    int now = totp.generateOneTimePassword(key, java.time.Instant.now());
     if (!String.format("%06d", now).equals(req.code())) return ResponseEntity.status(401).body("Invalid code");
     String token = jwt.create(Map.of("uid", u.getId().toString(), "exp", (System.currentTimeMillis()/1000)+3600));
     return ResponseEntity.ok(new TotpRes(token));
@@ -91,12 +92,12 @@ public class ApiController {
   private UserAccount userFromAuth(String auth){
     if (auth == null || !auth.startsWith("Bearer ")) throw new RuntimeException("Missing token");
     var j = jwt.verify(auth.substring(7));
-    UUID uid = UUID.fromString(j.getBody().get("uid", String.class));
+    java.util.UUID uid = java.util.UUID.fromString(j.getBody().get("uid", String.class));
     return users.findById(uid).orElseThrow();
   }
 
   public record VaultCreate(String title, String username, String password, String url, String notes) {}
-  public record VaultView(UUID id, String title, String username, String password, String url, String notes) {}
+  public record VaultView(java.util.UUID id, String title, String username, String password, String url, String notes) {}
 
   @GetMapping("/vault")
   public java.util.List<VaultView> list(@RequestHeader("Authorization") String auth){
