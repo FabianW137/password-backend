@@ -9,6 +9,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.Serializable;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -28,17 +31,22 @@ public class VaultController {
         return null;
     }
     @GetMapping
-    public List<Map<String,Object>> list(Authentication auth){
+    public List<Map<String, Serializable>> list(Authentication auth) {
         Long uid = currentUserId(auth);
         UserAccount owner = users.findById(uid).orElseThrow();
-        return vaults.findByOwner(owner).stream().map(it -> Map.of(
-            "id", it.getId(),
-            "title", crypto.decrypt(it.getTitleEnc()),
-            "username", crypto.decrypt(it.getUsernameEnc()),
-            "password", crypto.decrypt(it.getPasswordEnc()),
-            "url", crypto.decrypt(it.getUrlEnc()),
-            "notes", crypto.decrypt(it.getNotesEnc())
-        )).collect(Collectors.toList());
+
+        return vaults.findByOwner(owner).stream()
+                .map(it -> {
+                    Map<String, Serializable> m = new HashMap<>();
+                    m.put("id", it.getId());                              // Long ist Serializable
+                    m.put("title",     crypto.decrypt(it.getTitleEnc()));
+                    m.put("username",  crypto.decrypt(it.getUsernameEnc()));
+                    m.put("password",  crypto.decrypt(it.getPasswordEnc()));
+                    m.put("url",       crypto.decrypt(it.getUrlEnc()));
+                    m.put("notes",     crypto.decrypt(it.getNotesEnc()));
+                    return m;
+                })
+                .collect(Collectors.toList());
     }
     @PostMapping
     public Map<String,Object> add(Authentication auth, @RequestBody Map<String,String> body){
