@@ -6,6 +6,7 @@ import javax.crypto.spec.SecretKeySpec;
 import java.security.SecureRandom;
 import java.util.Base64;
 
+
 public class CryptoService {
     private final byte[] key;
     private final SecureRandom rnd = new SecureRandom();
