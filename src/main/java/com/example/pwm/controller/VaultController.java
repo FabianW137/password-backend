@@ -7,13 +7,11 @@ import com.example.pwm.repo.VaultItemRepository;
 import com.example.pwm.service.CryptoService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.Serializable;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @RestController
@@ -24,15 +22,35 @@ public class VaultController {
     private final CryptoService crypto = new CryptoService();
     public VaultController(VaultItemRepository v, UserAccountRepository u){ this.vaults=v; this.users=u; }
 
-    private Long currentUserId(Authentication auth){
-        if (auth == null) return null;
+    private UUID currentUserId(Authentication auth) {
+        if (auth == null) throw new IllegalStateException("no Authentication");
+
+        // 1) Bevorzugt: Das Subject aus dem JWT steckt als Name (String) drin
+        String name = auth.getName();
+        if (name != null) {
+            try { return UUID.fromString(name); } catch (IllegalArgumentException ignored) {}
+        }
+
+        // 2) Oder wurde im Filter in die Details gelegt
         Object details = auth.getDetails();
-        if (details instanceof Long) return (Long) details;
-        return null;
+        if (details instanceof UUID u) return u;
+        if (details instanceof String s) {
+            try { return UUID.fromString(s); } catch (IllegalArgumentException ignored) {}
+        }
+
+        // 3) Fallback: Principal trägt die E-Mail -> per Repo auflösen
+        Object principal = auth.getPrincipal();
+        if (principal instanceof UserDetails ud) {
+            return users.findByEmail(ud.getUsername())
+                    .map(UserAccount::getId)     // UserAccount.id ist UUID
+                    .orElseThrow(() -> new IllegalStateException("unknown user: " + ud.getUsername()));
+        }
+
+        throw new IllegalStateException("cannot determine current user id");
     }
     @GetMapping
     public List<Map<String, Serializable>> list(Authentication auth) {
-        Long uid = currentUserId(auth);
+        UUID uid = currentUserId(auth);
         UserAccount owner = users.findById(uid).orElseThrow();
 
         return vaults.findByOwner(owner).stream()
@@ -50,7 +68,7 @@ public class VaultController {
     }
     @PostMapping
     public Map<String,Object> add(Authentication auth, @RequestBody Map<String,String> body){
-        Long uid = currentUserId(auth);
+        UUID uid = currentUserId(auth);
         UserAccount owner = users.findById(uid).orElseThrow();
         VaultItem it = new VaultItem();
         it.setOwner(owner);
@@ -64,7 +82,7 @@ public class VaultController {
     }
     @DeleteMapping("/{id}")
     public ResponseEntity<?> delete(Authentication auth, @PathVariable Long id){
-        Long uid = currentUserId(auth);
+        UUID uid = currentUserId(auth);
         UserAccount owner = users.findById(uid).orElseThrow();
         var it = vaults.findById(id).orElse(null);
         if (it == null || !it.getOwner().getId().equals(owner.getId())) return ResponseEntity.notFound().build();

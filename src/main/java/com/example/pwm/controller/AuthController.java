@@ -35,7 +35,7 @@ public class AuthController {
     // ---------- Endpoints ----------
 
     /**
-     * Registrierung: prüft per findByEmail(...) statt existsByEmail(...).
+     * Registrierung: prüft per findByEmail.
      */
     @PostMapping("/register")
     @Transactional
