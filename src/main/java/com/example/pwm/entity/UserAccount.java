@@ -1,42 +1,38 @@
 package com.example.pwm.entity;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.UuidGenerator;
+
+import java.util.UUID;
 
 @Entity
-@Table(name = "users")
+@Table(name = "users", indexes = {
+        @Index(name = "uk_users_email", columnList = "email", unique = true)
+})
 public class UserAccount {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @GeneratedValue
+    @UuidGenerator
+    @Column(name = "id", columnDefinition = "uuid", updatable = false, nullable = false)
+    private UUID id;
 
-    @Column(nullable = false, unique = true, length = 255)
+    @Column(name = "email", nullable = false, length = 320, unique = true)
     private String email;
 
-    /**
-     * Hier wird der BCrypt-Hash gespeichert – niemals das Klartextpasswort!
-     */
     @Column(name = "password_hash", nullable = false, length = 100)
     private String passwordHash;
 
-    public UserAccount() {
-    }
+    @Column(name = "totp_secret", length = 200)
+    private String totpSecret;
 
-    public UserAccount(String email, String passwordHash) {
-        this.email = email;
-        this.passwordHash = passwordHash;
-    }
+    public UserAccount() {}
 
-    // ---- Getter/Setter ----
-    public Long getId() { return id; }
-
-    public void setId(Long id) { this.id = id; }
-
+    public UUID getId() { return id; }
     public String getEmail() { return email; }
-
     public void setEmail(String email) { this.email = email; }
-
     public String getPasswordHash() { return passwordHash; }
-
     public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
+    public String getTotpSecret() { return totpSecret; }
+    public void setTotpSecret(String totpSecret) { this.totpSecret = totpSecret; }
 }
