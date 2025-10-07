@@ -30,4 +30,17 @@ public class SecurityConfig {
 
         return http.build();
     }
+@Bean
+    CorsConfigurationSource corsConfigurationSource() {
+    CorsConfiguration cfg = new CorsConfiguration();
+    cfg.setAllowedOrigins(List.of(
+        "https://<dein-frontend-onrender-domain>"  // z.B. https://password-frontend-xxxx.onrender.com
+    ));
+    cfg.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
+    cfg.setAllowedHeaders(List.of("Authorization","Content-Type"));
+    cfg.setAllowCredentials(true); // falls Cookies/Bearer
+    UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+    source.registerCorsConfiguration("/**", cfg);
+    return source;
+
 }
