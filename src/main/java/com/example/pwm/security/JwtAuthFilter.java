@@ -26,12 +26,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                                     HttpServletResponse res,
                                     FilterChain chain) throws ServletException, IOException {
 
-        if ("OPTIONS".equalsIgnoreCase(req.getMethod())) {
-            // optional, schadet aber nicht:
-            res.setStatus(HttpServletResponse.SC_OK);
+        String path = req.getRequestURI();
+        if (path.startsWith("/api/auth/")) {
             chain.doFilter(req, res);
             return;
         }
+
         String h = req.getHeader("Authorization");
         if (h != null && h.startsWith("Bearer ")) {
             String token = h.substring(7);
