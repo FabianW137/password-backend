@@ -5,62 +5,59 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.stereotype.Component;
+import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.UUID;
 
-@Component
-@RequiredArgsConstructor
 public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtService jwt;
 
+    public JwtAuthFilter(JwtService jwt) {
+        this.jwt = jwt;
+    }
+
+    /** Endpunkte/Methoden, für die der Filter nicht laufen soll (z. B. /api/auth/** und OPTIONS) */
     @Override
-    protected void doFilterInternal(HttpServletRequest req,
-                                    HttpServletResponse res,
-                                    FilterChain chain) throws IOException, ServletException {
+    protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
+        String path = request.getRequestURI();
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) return true;     // Preflight
+        return path.startsWith("/api/auth/")
+                || path.startsWith("/actuator")
+                || path.startsWith("/error")
+                || "/".equals(path);
+    }
 
-        String path = req.getRequestURI();
-        String method = req.getMethod();
+    @Override
+    protected void doFilterInternal(HttpServletRequest request,
+                                    HttpServletResponse response,
+                                    FilterChain chain)
+            throws ServletException, IOException {
 
-        // 1) Öffentliche Routen & Preflight NICHT anfassen
-        if ("OPTIONS".equalsIgnoreCase(method)
-                || path.startsWith("/api/auth/")
-                || "/".equals(path)
-                || path.startsWith("/actuator")) {
-            chain.doFilter(req, res);
-            return;
+        String header = request.getHeader(HttpHeaders.AUTHORIZATION);
+
+        if (header != null && header.startsWith("Bearer ")) {
+            String token = header.substring(7);
+            try {
+                UUID uid = jwt.requireUid(token);  // prüft Signatur/Ablauf und holt UUID
+                var auth = new UsernamePasswordAuthenticationToken(uid, null, List.of());
+                auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                // optional: auth.setDetails(uid);  // wenn du die UUID in 'details' brauchst
+                SecurityContextHolder.getContext().setAuthentication(auth);
+            } catch (Exception ex) {
+                SecurityContextHolder.clearContext();
+                response.setStatus(HttpStatus.UNAUTHORIZED.value());
+                return;
+            }
         }
 
-        // 2) Kein/anderer Auth-Header -> einfach weiter (wird durch Security später 401/403)
-        String h = req.getHeader(HttpHeaders.AUTHORIZATION);
-        if (h == null || !h.startsWith("Bearer ")) {
-            chain.doFilter(req, res);
-            return;
-        }
-
-        // 3) Token prüfen, bei Fehler 401 zurückgeben
-        String token = h.substring(7);
-        try {
-            UUID uid = jwt.requireUid(token);  // wirft bei ungültig/abgelaufen
-            UsernamePasswordAuthenticationToken auth =
-                    new UsernamePasswordAuthenticationToken(uid.toString(), null, List.of());
-            auth.setDetails(uid); // du liest die UUID später aus getDetails()
-            SecurityContextHolder.getContext().setAuthentication(auth);
-            chain.doFilter(req, res);
-        } catch (Exception ex) {
-            res.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            // optional: res.getWriter().write("Invalid token");
-        }
+        chain.doFilter(request, response);
     }
 }
-
-
-
