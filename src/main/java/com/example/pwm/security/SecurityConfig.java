@@ -10,6 +10,8 @@ import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
@@ -22,6 +24,11 @@ import java.util.List;
 @EnableWebSecurity
 public class SecurityConfig {
 
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        // kompatibel zu gespeicherten BCrypt-Hashes
+        return new BCryptPasswordEncoder();
+    }
     // Setze das in Render als Env-Var: APP_FRONTEND_ORIGIN=https://passwordmanager.onrender.com
     @Value("${app.frontend.origin:https://passwordmanager.onrender.com}")
     private String frontendOrigin;
