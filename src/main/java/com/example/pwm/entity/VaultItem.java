@@ -1,49 +1,59 @@
 package com.example.pwm.entity;
 
 import jakarta.persistence.*;
+import java.time.Instant;
 import java.util.Objects;
 
 @Entity
-@Table(
-        name = "vault_item",
-        indexes = { @Index(name = "idx_vaultitem_owner", columnList = "owner_id") }
-)
+@Table(name = "vault_items")
 public class VaultItem {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.IDENTITY) // Long Autoincrement
     private Long id;
 
-    // verschlüsselte Felder
-    @Column(name = "title_enc", nullable = false, length = 2048)
-    private String titleEnc;
-
-    @Column(name = "username_enc", nullable = false, length = 2048)
-    private String usernameEnc;
-
-    @Column(name = "password_enc", nullable = false, length = 4096)
-    private String passwordEnc;
-
-    @Column(name = "url_enc", length = 2048)
-    private String urlEnc;
-
-    @Column(name = "notes_enc", length = 8192)
-    private String notesEnc;
-
-    // FK -> users.id (uuid)
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(
-            name = "owner_id",
-            nullable = false,
-            columnDefinition = "uuid",
-            foreignKey = @ForeignKey(name = "fk_vaultitem_owner")
-    )
+    @JoinColumn(name = "owner_id", nullable = false) // verweist auf users.id (UUID)
     private UserAccount owner;
 
-    public VaultItem() {}
+    @Column(name = "title_enc",    nullable = false, columnDefinition = "text")
+    private String titleEnc;
 
-    // Getter/Setter
+    @Column(name = "username_enc", nullable = false, columnDefinition = "text")
+    private String usernameEnc;
+
+    @Column(name = "password_enc", nullable = false, columnDefinition = "text")
+    private String passwordEnc;
+
+    @Column(name = "url_enc",      nullable = false, columnDefinition = "text")
+    private String urlEnc;
+
+    @Column(name = "notes_enc",    nullable = false, columnDefinition = "text")
+    private String notesEnc;
+
+    @Column(name = "created_at", nullable = false)
+    private Instant createdAt;
+
+    /* ---------- Lifecycle ---------- */
+
+    @PrePersist
+    void onCreate() {
+        if (createdAt == null) createdAt = Instant.now();
+        // Nulls vermeiden (AES/GCM-Decrypt erwartet validen String)
+        if (titleEnc    == null) titleEnc = "";
+        if (usernameEnc == null) usernameEnc = "";
+        if (passwordEnc == null) passwordEnc = "";
+        if (urlEnc      == null) urlEnc = "";
+        if (notesEnc    == null) notesEnc = "";
+    }
+
+    /* ---------- Getter/Setter ---------- */
+
     public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+
+    public UserAccount getOwner() { return owner; }
+    public void setOwner(UserAccount owner) { this.owner = owner; }
 
     public String getTitleEnc() { return titleEnc; }
     public void setTitleEnc(String titleEnc) { this.titleEnc = titleEnc; }
@@ -60,14 +70,20 @@ public class VaultItem {
     public String getNotesEnc() { return notesEnc; }
     public void setNotesEnc(String notesEnc) { this.notesEnc = notesEnc; }
 
-    public UserAccount getOwner() { return owner; }
-    public void setOwner(UserAccount owner) { this.owner = owner; }
+    public Instant getCreatedAt() { return createdAt; }
+    public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
 
-    @Override public boolean equals(Object o) {
+    /* ---------- equals/hashCode nur über id ---------- */
+
+    @Override
+    public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof VaultItem)) return false;
-        VaultItem that = (VaultItem) o;
+        if (!(o instanceof VaultItem that)) return false;
         return id != null && Objects.equals(id, that.id);
     }
-    @Override public int hashCode() { return 31; }
+
+    @Override
+    public int hashCode() {
+        return 31;
+    }
 }
