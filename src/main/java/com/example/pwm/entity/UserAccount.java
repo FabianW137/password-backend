@@ -22,16 +22,16 @@ public class UserAccount {
     @Column(nullable = false, unique = true, length = 320)
     private String email;
 
-    @Column(nullable = false, length = 255)
+    @Column(name = "password_hash", nullable = false, length = 255)
     private String passwordHash;
 
     @Column(name = "totp_secret_enc", nullable = false, length = 512)
     private String totpSecretEnc;
 
-    @Column(nullable = false)
+    @Column(name = "totp_verified", nullable = false)
     private boolean totpVerified = false;
 
-    @Column(nullable = false, updatable = false)
+    @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
     @PrePersist
@@ -55,5 +55,5 @@ public class UserAccount {
     public boolean getTotpVerified() { return totpVerified; }
     public void setTotpVerified(boolean totpVerified) { this.totpVerified = totpVerified; }
 
-    public Instant getCreatedAt() { return createdAt; } // kein Setter nötig bei Option A
+    public Instant getCreatedAt() { return createdAt; }
 }
