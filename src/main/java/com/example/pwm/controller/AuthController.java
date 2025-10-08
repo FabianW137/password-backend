@@ -4,6 +4,8 @@ import com.example.pwm.entity.UserAccount;
 import com.example.pwm.repo.UserAccountRepository;
 import com.example.pwm.service.JwtService;
 import jakarta.transaction.Transactional;
+import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -11,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Duration;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
@@ -40,21 +43,29 @@ public class AuthController {
     @PostMapping("/register")
     @Transactional
     public ResponseEntity<?> register(@RequestBody RegisterReq req) {
-        if (req == null || req.email() == null || req.password() == null ||
-                req.email().isBlank() || req.password().isBlank()) {
+        if (req == null || req.email() == null || req.password() == null
+                || req.email().isBlank() || req.password().isBlank()) {
             return ResponseEntity.badRequest().body(Map.of("error", "email und password sind erforderlich"));
         }
 
-        // <-- WICHTIG: existenz per findByEmail prüfen
-        if (users.findByEmail(req.email()).isPresent()) {
+        String email = req.email().trim().toLowerCase(Locale.ROOT);
+
+        if (users.existsByEmailIgnoreCase(email)) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
-                    .body(Map.of("error", "email bereits vergeben"));
+                    .body(Map.of("error", "E-Mail bereits vergeben"));
         }
 
         UserAccount u = new UserAccount();
-        u.setEmail(req.email().trim());
+        u.setEmail(email);
         u.setPasswordHash(encoder.encode(req.password()));
-        users.save(u);
+
+        try {
+            // wichtig: sofort flushen → DB-Fehler jetzt (im try) statt später
+            users.saveAndFlush(u);
+        } catch (DataIntegrityViolationException | ConstraintViolationException ex) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(Map.of("error", "E-Mail bereits vergeben"));
+        }
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(Map.of("id", u.getId(), "email", u.getEmail()));
