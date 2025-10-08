@@ -171,9 +171,8 @@ public class AuthController {
         UserAccount u = new UserAccount();
         u.setEmail(email);
         u.setPasswordHash(encoder.encode(req.password()));
-        u.setTotpSecret(crypto.encrypt(totpSecret));     // << verschlüsselt ablegen
+        u.setTotpSecretEnc(crypto.encrypt(totpSecret));     // << verschlüsselt ablegen
         u.setTotpVerified(false);
-        u.setCreatedAt(Instant.now());
 
         users.save(u);
 
@@ -193,7 +192,7 @@ public class AuthController {
             return ResponseEntity.badRequest().body(Map.of("error", "email und password sind erforderlich"));
         }
         String email = req.email().trim();
-        UserAccount u = users.findByEmailIgnoreCase(email).orElse(null);
+        UserAccount u = users.findByEmail(email).orElse(null);
         if (u == null || !encoder.matches(req.password(), u.getPasswordHash())) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Bad credentials"));
         }
@@ -212,7 +211,7 @@ public class AuthController {
         UserAccount u = users.findById(uid).orElse(null);
         if (u == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Bad credentials"));
 
-        String secretB32 = crypto.decrypt(u.getTotpSecret());
+        String secretB32 = crypto.decrypt(u.getTotpSecretEnc());
         byte[] key = base32Decode(secretB32);
 
         if (!totpMatches(key, req.code())) {
