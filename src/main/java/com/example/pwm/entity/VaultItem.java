@@ -3,6 +3,7 @@ package com.example.pwm.entity;
 import jakarta.persistence.*;
 import java.time.Instant;
 import java.util.Objects;
+import java.util.UUID;
 
 @Entity
 @Table(name = "vault_items")
@@ -10,28 +11,28 @@ public class VaultItem {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY) // Long Autoincrement
-    private Long id;
+    private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "owner_id", nullable = false) // verweist auf users.id (UUID)
     private UserAccount owner;
 
-    @Column(name = "title_enc",    nullable = false, columnDefinition = "text")
+    @Column(name = "title",    nullable = false, columnDefinition = "text")
     private String titleEnc;
 
-    @Column(name = "username_enc", nullable = false, columnDefinition = "text")
+    @Column(name = "username", nullable = false, columnDefinition = "text")
     private String usernameEnc;
 
-    @Column(name = "password_enc", nullable = false, columnDefinition = "text")
+    @Column(name = "password", nullable = false, columnDefinition = "text")
     private String passwordEnc;
 
-    @Column(name = "url_enc",      nullable = false, columnDefinition = "text")
+    @Column(name = "url",      nullable = false, columnDefinition = "text")
     private String urlEnc;
 
-    @Column(name = "notes_enc",    nullable = false, columnDefinition = "text")
+    @Column(name = "notes",    nullable = false, columnDefinition = "text")
     private String notesEnc;
 
-    @Column(name = "created_at", nullable = false)
+    @Column(name = "created", nullable = false)
     private Instant createdAt;
 
     /* ---------- Lifecycle ---------- */
@@ -49,8 +50,8 @@ public class VaultItem {
 
     /* ---------- Getter/Setter ---------- */
 
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
+    public UUID getId() { return id; }
+    public void setId(UUID id) { this.id = id; }
 
     public UserAccount getOwner() { return owner; }
     public void setOwner(UserAccount owner) { this.owner = owner; }
