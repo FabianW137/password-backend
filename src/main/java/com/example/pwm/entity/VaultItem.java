@@ -46,6 +46,8 @@ public class VaultItem {
         if (passwordEnc == null) passwordEnc = "";
         if (urlEnc      == null) urlEnc = "";
         if (notesEnc    == null) notesEnc = "";
+
+        createdAt = Instant.now();
     }
 
     /* ---------- Getter/Setter ---------- */
