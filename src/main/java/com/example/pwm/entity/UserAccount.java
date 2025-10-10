@@ -2,6 +2,7 @@
 package com.example.pwm.entity;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.UuidGenerator;
 
 import java.time.Instant;
@@ -22,11 +23,14 @@ public class UserAccount {
     @Column(nullable = false, unique = true, length = 320)
     private String email;
 
+    // Standardwert leer + DB-Default (für Schema-Generierung)
     @Column(name = "password_hash", nullable = false, length = 255)
-    private String passwordHash;
+    @ColumnDefault("''")
+    private String passwordHash = "";
 
     @Column(name = "totp_secret_enc", nullable = false, length = 512)
-    private String totpSecretEnc;
+    @ColumnDefault("''")
+    private String totpSecretEnc = "";
 
     @Column(name = "totp_verified", nullable = false)
     private boolean totpVerified = false;
@@ -37,6 +41,15 @@ public class UserAccount {
     @PrePersist
     void prePersist() {
         if (createdAt == null) createdAt = Instant.now();
+        // Falls irgendwo doch null reinkommt:
+        if (passwordHash == null) passwordHash = "";
+        if (totpSecretEnc == null) totpSecretEnc = "";
+    }
+
+    @PreUpdate
+    void preUpdate() {
+        if (passwordHash == null) passwordHash = "";
+        if (totpSecretEnc == null) totpSecretEnc = "";
     }
 
     // --- Getter/Setter ---
