@@ -1,59 +1,82 @@
 package com.example.pwm.entity;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.ColumnDefault;
+
 import java.time.Instant;
-import java.util.Objects;
-import java.util.UUID;
 
 @Entity
-@Table(name = "vault_items")
+@Table(name = "vault_items", indexes = {
+        @Index(name = "ix_vault_owner", columnList = "owner_id"),
+        @Index(name = "ix_vault_created_at", columnList = "created_at")
+})
 public class VaultItem {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY) // Long Autoincrement
-    private UUID id;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "owner_id", nullable = false) // verweist auf users.id (UUID)
+    // FK auf users.id (UUID)
+    @ManyToOne(optional = false, fetch = FetchType.LAZY)
+    @JoinColumn(
+            name = "owner_id",
+            nullable = false,
+            foreignKey = @ForeignKey(name = "fk_vaultitem_owner")
+    )
     private UserAccount owner;
 
-    @Column(name = "title",    nullable = false, columnDefinition = "text")
-    private String titleEnc;
+    @Column(name = "title_enc", nullable = false, length = 1024)
+    @ColumnDefault("''")
+    private String titleEnc = "";
 
-    @Column(name = "username", nullable = false, columnDefinition = "text")
-    private String usernameEnc;
+    @Column(name = "username_enc", nullable = false, length = 1024)
+    @ColumnDefault("''")
+    private String usernameEnc = "";
 
-    @Column(name = "password", nullable = false, columnDefinition = "text")
-    private String passwordEnc;
+    @Column(name = "password_enc", nullable = false, length = 2048)
+    @ColumnDefault("''")
+    private String passwordEnc = "";
 
-    @Column(name = "url",      nullable = false, columnDefinition = "text")
-    private String urlEnc;
+    @Column(name = "url_enc", nullable = false, length = 1024)
+    @ColumnDefault("''")
+    private String urlEnc = "";
 
-    @Column(name = "notes",    nullable = false, columnDefinition = "text")
-    private String notesEnc;
+    @Column(name = "notes_enc", nullable = false, columnDefinition = "text")
+    @ColumnDefault("''")
+    private String notesEnc = "";
 
-    @Column(name = "created", nullable = false)
+    @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
-    /* ---------- Lifecycle ---------- */
+    @Column(name = "updated_at", nullable = false)
+    private Instant updatedAt;
 
     @PrePersist
-    void onCreate() {
+    void prePersist() {
         if (createdAt == null) createdAt = Instant.now();
-        // Nulls vermeiden (AES/GCM-Decrypt erwartet validen String)
-        if (titleEnc    == null) titleEnc = "";
+        if (updatedAt == null) updatedAt = createdAt;
+        // Null-Schutz
+        if (titleEnc == null) titleEnc = "";
         if (usernameEnc == null) usernameEnc = "";
         if (passwordEnc == null) passwordEnc = "";
-        if (urlEnc      == null) urlEnc = "";
-        if (notesEnc    == null) notesEnc = "";
-
-        createdAt = Instant.now();
+        if (urlEnc == null) urlEnc = "";
+        if (notesEnc == null) notesEnc = "";
     }
 
-    /* ---------- Getter/Setter ---------- */
+    @PreUpdate
+    void preUpdate() {
+        updatedAt = Instant.now();
+        // Null-Schutz
+        if (titleEnc == null) titleEnc = "";
+        if (usernameEnc == null) usernameEnc = "";
+        if (passwordEnc == null) passwordEnc = "";
+        if (urlEnc == null) urlEnc = "";
+        if (notesEnc == null) notesEnc = "";
+    }
 
-    public UUID getId() { return id; }
-    public void setId(UUID id) { this.id = id; }
+    // --- Getter/Setter ---
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
 
     public UserAccount getOwner() { return owner; }
     public void setOwner(UserAccount owner) { this.owner = owner; }
@@ -76,17 +99,6 @@ public class VaultItem {
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
 
-    /* ---------- equals/hashCode nur über id ---------- */
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (!(o instanceof VaultItem that)) return false;
-        return id != null && Objects.equals(id, that.id);
-    }
-
-    @Override
-    public int hashCode() {
-        return 31;
-    }
+    public Instant getUpdatedAt() { return updatedAt; }
+    public void setUpdatedAt(Instant updatedAt) { this.updatedAt = updatedAt; }
 }
