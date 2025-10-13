@@ -12,9 +12,11 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
-import java.util.*;
+import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 @RestController
 @RequestMapping("/api/vault")
@@ -51,7 +53,7 @@ public class VaultController {
         Optional<UserAccount> byEmail = users.findByEmail(name);
         if (byEmail.isPresent()) return byEmail.get();
 
-        // 2) Fallback: Principal ist UUID-String (z.B. JWT sub)
+        // 2) Fallback: Principal ist UUID-String (z. B. JWT 'sub')
         try {
             UUID id = UUID.fromString(name);
             return users.findById(id).orElseThrow(() ->
@@ -74,6 +76,10 @@ public class VaultController {
         );
     }
 
+    private static boolean contains(String value, String q) {
+        return value != null && value.toLowerCase(Locale.ROOT).contains(q);
+    }
+
     /* -------------------- Endpoints -------------------- */
 
     // GET /api/vault?query=abc
@@ -84,7 +90,6 @@ public class VaultController {
 
         List<VaultItem> all = vaults.findByOwnerOrderByIdAsc(owner);
 
-        // Nach Entschlüsselung filtern (da at-rest verschlüsselt)
         if (query == null || query.isBlank()) {
             return all.stream().map(this::toDto).collect(Collectors.toList());
         }
@@ -102,13 +107,18 @@ public class VaultController {
                 .collect(Collectors.toList());
     }
 
-    private static boolean contains(String value, String q) {
-        return value != null && value.toLowerCase(Locale.ROOT).contains(q);
+    // GET /api/vault/{id}
+    @GetMapping("/{id}")
+    public VaultItemDto getOne(@PathVariable Long id, Authentication auth) {
+        UserAccount owner = requireOwner(auth);
+        VaultItem v = vaults.findByIdAndOwner(id, owner)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "not found"));
+        return toDto(v);
     }
 
     // POST /api/vault
     @PostMapping
-    public ResponseEntity<?> add(@RequestBody VaultUpsertReq req, Authentication auth) {
+    public ResponseEntity<VaultItemDto> add(@RequestBody VaultUpsertReq req, Authentication auth) {
         if (req == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "payload fehlt");
         UserAccount owner = requireOwner(auth);
 
@@ -123,14 +133,14 @@ public class VaultController {
         v.setUpdatedAt(Instant.now());
 
         vaults.save(v);
-        return ResponseEntity.status(HttpStatus.CREATED).body(Map.of("id", v.getId()));
+        return ResponseEntity.status(HttpStatus.CREATED).body(toDto(v));
     }
 
     // PUT /api/vault/{id}
     @PutMapping("/{id}")
-    public ResponseEntity<?> update(@PathVariable("id") Long id,
-                                    @RequestBody VaultUpsertReq req,
-                                    Authentication auth) {
+    public ResponseEntity<VaultItemDto> update(@PathVariable Long id,
+                                               @RequestBody VaultUpsertReq req,
+                                               Authentication auth) {
         if (req == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "payload fehlt");
         UserAccount owner = requireOwner(auth);
 
@@ -145,12 +155,12 @@ public class VaultController {
         v.setUpdatedAt(Instant.now());
 
         vaults.save(v);
-        return ResponseEntity.ok(Map.of("id", v.getId()));
+        return ResponseEntity.ok(toDto(v));
     }
 
     // DELETE /api/vault/{id}
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> delete(@PathVariable("id") Long id, Authentication auth) {
+    public ResponseEntity<Void> delete(@PathVariable Long id, Authentication auth) {
         UserAccount owner = requireOwner(auth);
 
         VaultItem v = vaults.findByIdAndOwner(id, owner)
