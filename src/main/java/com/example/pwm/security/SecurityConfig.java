@@ -56,10 +56,12 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         // Deine public Frontend-URL:
         String frontend = "https://passwortmanager.onrender.com";
+        String gateway = "https://password-graphql.onrender.com";
 
         CorsConfiguration cfg = new CorsConfiguration();
         cfg.setAllowedOrigins(List.of(
                 frontend,
+                gateway,
                 "http://localhost:5173",
                 "http://localhost:4200"
         ));
