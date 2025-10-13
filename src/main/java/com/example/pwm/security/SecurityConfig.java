@@ -7,7 +7,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -24,8 +23,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-
-import java.util.List;
 
 @Configuration
 public class SecurityConfig {
@@ -66,8 +63,8 @@ public class SecurityConfig {
         return http.build();
 
     }
-
-    private JwtAuthenticationToken jwtToAuthToken(Jwt jwt) {
+@Bean
+    JwtAuthenticationToken jwtToAuthToken(Jwt jwt) {
         // Authorities aus Standard-Scopes
         JwtGrantedAuthoritiesConverter scopes = new JwtGrantedAuthoritiesConverter();
         scopes.setAuthorityPrefix("SCOPE_");           // z. B. SCOPE_read
