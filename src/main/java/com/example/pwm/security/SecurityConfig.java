@@ -1,5 +1,7 @@
 package com.example.pwm.security;
 
+
+import com.example.pwm.service.JwtService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -8,6 +10,8 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
@@ -21,10 +25,24 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
+import java.util.List;
+
 @Configuration
-@EnableWebSecurity
 public class SecurityConfig {
 
+    /** BCrypt für Passwörter */
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
+    /** Unser JWT-Filter */
+    @Bean
+    public JwtAuthFilter jwtAuthFilter(JwtService jwtService) {
+        return new JwtAuthFilter(jwtService);
+    }
+
+    /** Security-HTTP-Konfiguration */
     @Bean
     SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
@@ -46,13 +64,9 @@ public class SecurityConfig {
                 );
 
         return http.build();
+
     }
 
-    /**
-     * Wandelt ein JWT in ein Authentication-Objekt:
-     * - Principal: bevorzugt "email", sonst "sub"
-     * - Authorities: aus "scope"/"scp" zu "SCOPE_*"
-     */
     private JwtAuthenticationToken jwtToAuthToken(Jwt jwt) {
         // Authorities aus Standard-Scopes
         JwtGrantedAuthoritiesConverter scopes = new JwtGrantedAuthoritiesConverter();
@@ -68,19 +82,32 @@ public class SecurityConfig {
         return new JwtAuthenticationToken(jwt, Objects.requireNonNullElse(authorities, List.of()), principal);
     }
 
-    /**
-     * CORS für Browser-Calls (Render, verschiedene Origins).
-     * Wenn du feste Domains hast, trage sie statt "*" in setAllowedOriginPatterns(...) ein.
-     */
+        /** CORS-Quelle – hier die erlaubten Origins/Headers/Methoden definieren */
     @Bean
-    CorsConfigurationSource corsConfigurationSource() {
+    public CorsConfigurationSource corsConfigurationSource() {
+        // Deine public Frontend-URL:
+        String frontend = "https://passwortmanager.onrender.com";
+        String gateway = "https://password-graphql.onrender.com";
+
         CorsConfiguration cfg = new CorsConfiguration();
-        cfg.setAllowedOriginPatterns(List.of("*")); // für Produktion besser spezifische Origins setzen
-        cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        cfg.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept"));
+        cfg.setAllowedOrigins(List.of(
+                frontend,
+                gateway,
+                "http://localhost:5173",
+                "http://localhost:4200"
+        ));
+        cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        cfg.setAllowedHeaders(List.of(
+                "Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"
+        ));
+        // Wir verwenden Bearer-Token im Header, keine Cookies:
         cfg.setAllowCredentials(false);
+        cfg.setMaxAge(3600L);
+        // Optional: falls das Frontend Header zurücklesen muss (meist nicht nötig)
+        // cfg.setExposedHeaders(List.of("Authorization"));
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        // Für alle Pfade anwenden (alternativ "/api/**")
         source.registerCorsConfiguration("/**", cfg);
         return source;
     }
