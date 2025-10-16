@@ -1,12 +1,10 @@
 package com.example.pwm.security;
 
-import jakarta.servlet.http.HttpServletResponse;
+import com.example.pwm.service.JwtService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
@@ -14,7 +12,6 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.cors.CorsConfigurationSource;
-
 import java.util.List;
 
 @Configuration
@@ -22,27 +19,25 @@ import java.util.List;
 public class SecurityConfig {
 
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http, JwtAuthFilter jwt) throws Exception {
+    public JwtAuthFilter jwtAuthFilter(JwtService jwtService) {
+        return new JwtAuthFilter(jwtService);
+    }
+
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http, JwtAuthFilter jwtAuthFilter) throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
-                .cors(cors -> {})
-                .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers("/actuator/health", "/api/auth/**", "/error", "/").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/vault/**").authenticated()
-                        .requestMatchers(HttpMethod.POST, "/api/vault/**").authenticated()
-                        .requestMatchers(HttpMethod.PUT, "/api/vault/**").authenticated()
-                        .requestMatchers(HttpMethod.DELETE, "/api/vault/**").authenticated()
-                        .anyRequest().permitAll()
-                )
-                .exceptionHandling(h -> h.authenticationEntryPoint((req, res, ex) -> {
-                    res.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                }));
+                        .requestMatchers("/api/auth/**", "/actuator/health").permitAll()
+                        .anyRequest().authenticated()
+                );
 
-        http.addFilterBefore(jwt, UsernamePasswordAuthenticationFilter.class);
+        // Filter einhängen
+        http.addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+
         return http.build();
     }
+
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
