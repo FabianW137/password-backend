@@ -39,12 +39,6 @@ public class AuthController {
         this.crypto = crypto;
     }
 
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder(12);
-    }
-
-
     /* -------------------- DTOs -------------------- */
 
     public record RegisterReq(String email, String password) {}
