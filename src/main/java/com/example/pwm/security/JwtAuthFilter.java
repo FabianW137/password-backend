@@ -35,29 +35,37 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 || "/".equals(path);
     }
 
+    // JwtAuthFilter.java
     @Override
-    protected void doFilterInternal(HttpServletRequest request,
-                                    HttpServletResponse response,
-                                    FilterChain chain)
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
 
-        String header = request.getHeader(HttpHeaders.AUTHORIZATION);
-
-        if (header != null && header.startsWith("Bearer ")) {
-            String token = header.substring(7);
-            try {
-                UUID uid = jwt.requireUid(token);  // prüft Signatur/Ablauf und holt UUID
-                var auth = new UsernamePasswordAuthenticationToken(uid, null, List.of());
-                auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                // optional: auth.setDetails(uid);  // wenn du die UUID in 'details' brauchst
-                SecurityContextHolder.getContext().setAuthentication(auth);
-            } catch (Exception ex) {
-                SecurityContextHolder.clearContext();
-                response.setStatus(HttpStatus.UNAUTHORIZED.value());
-                return;
-            }
+        final String uri = request.getRequestURI();
+        // Auth-Endpoints nie "vorab" per JWT blockieren
+        if (uri.equals("/api/auth") || uri.startsWith("/api/auth/")) {
+            chain.doFilter(request, response);
+            return;
         }
 
-        chain.doFilter(request, response);
+        final String header = request.getHeader(HttpHeaders.AUTHORIZATION);
+        if (header == null || !header.startsWith("Bearer ")) {
+            chain.doFilter(request, response);
+            return;
+        }
+
+        try {
+            final String token = header.substring("Bearer ".length()).trim();
+            final java.util.UUID uid = jwt.parseUserId(token);
+            var auth = new UsernamePasswordAuthenticationToken(uid, null, List.of());
+            auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+            SecurityContextHolder.getContext().setAuthentication(auth);
+            chain.doFilter(request, response);
+        } catch (Exception ex) {
+            // WICHTIG: nicht hart 401 schicken – weiterlaufen lassen,
+            // damit die Security-Konfiguration entscheidet (und für public Endpoints nicht bricht)
+            SecurityContextHolder.clearContext();
+            chain.doFilter(request, response);
+        }
     }
+
 }
