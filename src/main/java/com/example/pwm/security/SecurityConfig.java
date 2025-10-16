@@ -1,10 +1,13 @@
 package com.example.pwm.security;
 
 import com.example.pwm.service.JwtService;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
@@ -24,17 +27,25 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http, JwtAuthFilter jwtAuthFilter) throws Exception {
+    public SecurityFilterChain filterChain(HttpSecurity http, JwtAuthFilter jwt) throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
+                .cors(cors -> {})
+                .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**", "/actuator/health").permitAll()
-                        .anyRequest().authenticated()
-                );
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .requestMatchers("/actuator/health", "/api/auth/**", "/error", "/").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/vault/**").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/api/vault/**").authenticated()
+                        .requestMatchers(HttpMethod.PUT, "/api/vault/**").authenticated()
+                        .requestMatchers(HttpMethod.DELETE, "/api/vault/**").authenticated()
+                        .anyRequest().permitAll()
+                )
+                .exceptionHandling(h -> h.authenticationEntryPoint((req, res, ex) -> {
+                    res.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                }));
 
-        // Filter einhängen
-        http.addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
-
+        http.addFilterBefore(jwt, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 
