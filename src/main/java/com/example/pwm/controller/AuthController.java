@@ -4,10 +4,8 @@ import com.example.pwm.entity.UserAccount;
 import com.example.pwm.repo.UserAccountRepository;
 import com.example.pwm.service.CryptoService;
 import com.example.pwm.service.JwtService;
-import org.springframework.context.annotation.Bean;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 

@@ -5,5 +5,18 @@ spring:
   jackson:
     serialization:
       WRITE_DATES_AS_TIMESTAMPS: false
+
+  datasource:
+    # Render (DATABASE_URL/JDBC_DATABASE_*) oder Standard SPRING_DATASOURCE_*
+    url: ${SPRING_DATASOURCE_URL:${DATABASE_URL}}
+    username: ${SPRING_DATASOURCE_USERNAME:${JDBC_DATABASE_USERNAME}}
+    password: ${SPRING_DATASOURCE_PASSWORD:${JDBC_DATABASE_PASSWORD}}
+
   jpa:
     open-in-view: false
+    hibernate:
+      ddl-auto: validate   # Schema durch Flyway, nicht Hibernate, erzeugen lassen
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: true

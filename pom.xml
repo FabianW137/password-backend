@@ -69,6 +69,19 @@
         <artifactId>spring-boot-starter-validation</artifactId>
       </dependency>
 
+    <!-- Flyway für DB-Migrationen -->
+    <dependency>
+      <groupId>org.flywaydb</groupId>
+      <artifactId>flyway-core</artifactId>
+    </dependency>
+    <!-- (optional, aber empfohlen bei Postgres) -->
+    <dependency>
+      <groupId>org.flywaydb</groupId>
+      <artifactId>flyway-database-postgresql</artifactId>
+      <version>10.16.0</version>
+    </dependency>
+
+
 
 
     <!-- DB -->
