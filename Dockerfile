@@ -1,35 +1,38 @@
-# syntax=docker/dockerfile:1
-
 ########## BUILD ##########
 FROM maven:3.9.9-eclipse-temurin-17 AS build
 WORKDIR /workspace
 
-# Leverage layer caching for dependencies
+# 1) Dependencies via Layer cachen (ohne BuildKit)
 COPY pom.xml .
 RUN mvn -B -q -DskipTests dependency:go-offline
 
-# Build application
+# 2) Quellcode & Build
 COPY src ./src
-RUN mvn -B -DskipTests clean package
+RUN mvn -B -DskipTests package
 
 ########## RUNTIME ##########
 FROM eclipse-temurin:17-jre-jammy
 WORKDIR /app
 
-# Create non-root user (Cloud Run best practice)
+# Non-root User
 RUN addgroup --system app && adduser --system --ingroup app app
 
-# Copy the built JAR (rename to a fixed name)
+# Artefakt kopieren & umbenennen (als root)
 COPY --from=build /workspace/target /app/target
-RUN set -eu; JAR="$(ls -1 /app/target/*.jar | head -n1)";     mv "$JAR" /app/app.jar; rm -rf /app/target
+RUN set -eu; JAR="$(ls -1 /app/target/*.jar | head -n1)"; \
+    mv "$JAR" /app/app.jar; rm -rf /app/target
 
-# Default profile and JVM opts; you can override on deploy
-ENV SPRING_PROFILES_ACTIVE=docker
-ENV JAVA_OPTS="-XX:MaxRAMPercentage=75 -Djava.security.egd=file:/dev/./urandom"
-
-# Run as non-root
+# Rechte übergeben, dann als 'app' laufen
+RUN chown -R app:app /app
 USER app
 
-# Cloud Run provides $PORT and expects the service to listen on 0.0.0.0:$PORT
+# Port-Deklaration (Cloud Run setzt PORT env)
 EXPOSE 8080
-CMD ["sh","-c","java $JAVA_OPTS -Dserver.address=0.0.0.0 -Dserver.port=${PORT:-8080} -jar /app/app.jar"]
+
+# JVM- und Spring-Defaults
+ENV JAVA_OPTS="-XX:MaxRAMPercentage=75 -Djava.security.egd=file:/dev/./urandom"
+# Aktiviert application-docker.yml im Container (für Cloud Run)
+ENV SPRING_PROFILES_ACTIVE=docker
+
+# Start-Kommando: bindet auf Cloud-Run-PORT oder 8080
+CMD ["sh","-c","java $JAVA_OPTS -Dserver.port=${PORT:-8080} -jar /app/app.jar"]

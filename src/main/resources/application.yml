@@ -1,5 +1,5 @@
 server:
-  port: 8080
+  port: ${PORT:8080}
 
 spring:
   jackson:
@@ -7,3 +7,4 @@ spring:
       WRITE_DATES_AS_TIMESTAMPS: false
   jpa:
     open-in-view: false
+

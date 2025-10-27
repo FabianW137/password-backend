@@ -1,9 +1,14 @@
-spring.datasource.url=${DATABASE_URL}
-spring.datasource.username=${JDBC_DATABASE_USERNAME}
-spring.datasource.password=${JDBC_DATABASE_PASSWORD}
-spring.jpa.hibernate.ddl-auto=update
-spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.PostgreSQLDialect
-spring.jpa.open-in-view=false
-spring.main.banner-mode=console
-
-
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:${DATABASE_URL}}
+    username: ${SPRING_DATASOURCE_USERNAME:${JDBC_DATABASE_USERNAME:}}
+    password: ${SPRING_DATASOURCE_PASSWORD:${JDBC_DATABASE_PASSWORD:}}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+    open-in-view: false
+  main:
+    banner-mode: console
