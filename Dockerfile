@@ -1,11 +1,14 @@
 # ---- Build ----
-FROM maven:3.9.9-eclipse-temurin-17 AS build
-WORKDIR /workspace
+FROM maven:3.9-eclipse-temurin-21 AS build
+WORKDIR /app
+
+# 1) Dependencies cachen über Layers (ohne BuildKit)
 COPY pom.xml .
-RUN --mount=type=cache,target=/root/.m2 mvn -q -DskipTests dependency:go-offline
+RUN mvn -q -DskipTests dependency:go-offline
+
+# 2) Quellcode kopieren und bauen
 COPY src ./src
-RUN --mount=type=cache,target=/root/.m2 mvn -q -DskipTests package
-RUN bash -lc 'set -e; jar=$(ls target/*-SNAPSHOT.jar 2>/dev/null || ls target/*.jar | head -n1); cp "$jar" target/app.jar'
+RUN mvn -q -DskipTests package
 
 # ---- Runtime ----
 FROM eclipse-temurin:17-jre
