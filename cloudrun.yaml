@@ -1,0 +1,35 @@
+kind: Service
+metadata:
+  name: password-backend
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "0"
+        autoscaling.knative.dev/maxScale: "10"
+        run.googleapis.com/ingress: all
+    spec:
+      containerConcurrency: 80
+      containers:
+        - image: REGION-docker.pkg.dev/PROJECT_ID/REPO/password-backend:TAG
+          ports:
+            - containerPort: 8080
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: docker
+            - name: DATABASE_URL
+              value: jdbc:postgresql://HOST:5432/DB?sslmode=require
+            - name: JDBC_DATABASE_USERNAME
+              value: USER
+            - name: JDBC_DATABASE_PASSWORD
+              value: PASS
+            - name: JWT_SECRET
+              value: CHANGEME
+            - name: APP_ENCRYPTION_KEY
+              value: BASE64_32_BYTES
+            - name: CORS_ALLOWED_ORIGINS
+              value: https://dein-frontend.example
+          resources:
+            limits:
+              cpu: "1"
+              memory: 1Gi
