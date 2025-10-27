@@ -1,19 +1,30 @@
-# ---- Build ----
-FROM maven:3.9-eclipse-temurin-21 AS build
-WORKDIR /app
+########## BUILD ##########
+FROM maven:3.9.9-eclipse-temurin-17 AS build
+WORKDIR /workspace
 
-# 1) Dependencies cachen über Layers (ohne BuildKit)
+# nur pom.xml zuerst -> Layer-Caching für Dependencies
 COPY pom.xml .
-RUN mvn -q -DskipTests dependency:go-offline
+RUN mvn -B -q -DskipTests dependency:go-offline
 
-# 2) Quellcode kopieren und bauen
+# danach der Quellcode
 COPY src ./src
-RUN mvn -q -DskipTests package
+# Paket bauen (Spring Boot repackage)
+RUN mvn -B -DskipTests package
 
-# ---- Runtime ----
-FROM eclipse-temurin:17-jre
+########## RUNTIME ##########
+FROM eclipse-temurin:17-jre-jammy
 WORKDIR /app
-COPY --from=build /workspace/target/app.jar /app/app.jar
+
+# Nicht-root Nutzer
+RUN addgroup --system app && adduser --system --ingroup app app
+USER app
+
+# Artefakt übernehmen (jar unbekannt → generisch)
+COPY --from=build /workspace/target /app/target
+RUN set -eu; JAR="$(ls -1 /app/target/*.jar | head -n1)"; mv "$JAR" /app/app.jar; rm -rf /app/target
+
 EXPOSE 8080
-ENV JAVA_TOOL_OPTIONS="-XX:+UseZGC -XX:MaxRAMPercentage=75.0"
-CMD ["java","-jar","/app/app.jar"]
+ENV JAVA_OPTS="-XX:MaxRAMPercentage=75 -Djava.security.egd=file:/dev/./urandom"
+
+# Render setzt $PORT → an Spring durchreichen
+CMD ["sh", "-c", "java $JAVA_OPTS -Dserver.port=${PORT:-8080} -jar /app/app.jar"]
