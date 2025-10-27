@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1
+
 ########## BUILD ##########
 FROM maven:3.9.9-eclipse-temurin-17 AS build
 WORKDIR /workspace
@@ -10,15 +12,15 @@ RUN mvn -B -DskipTests package
 FROM eclipse-temurin:17-jre-jammy
 WORKDIR /app
 
-# 1) User anlegen (aber noch NICHT zu USER wechseln)
+# User anlegen (noch NICHT wechseln)
 RUN addgroup --system app && adduser --system --ingroup app app
 
-# 2) Artefakt kopieren und als root umbenennen
+# Artefakt kopieren und als root umbenennen
 COPY --from=build /workspace/target /app/target
 RUN set -eu; JAR="$(ls -1 /app/target/*.jar | head -n1)"; \
     mv "$JAR" /app/app.jar; rm -rf /app/target
 
-# 3) Rechte übergeben und erst jetzt als app laufen
+# Rechte übergeben und erst dann auf USER app wechseln
 RUN chown -R app:app /app
 USER app
 
