@@ -2,7 +2,7 @@
 FROM maven:3.9.9-eclipse-temurin-17 AS build
 WORKDIR /workspace
 
-# 1) Dependencies via Layer cachen (ohne BuildKit)
+# 1) Dependencies cachen
 COPY pom.xml .
 RUN mvn -B -q -DskipTests dependency:go-offline
 
@@ -14,15 +14,19 @@ RUN mvn -B -DskipTests package
 FROM eclipse-temurin:17-jre-jammy
 WORKDIR /app
 
-# Non-root User
+# Non-root User anlegen
 RUN addgroup --system app && adduser --system --ingroup app app
 
-# Artefakt kopieren & umbenennen (als root)
+# Artefakt als root kopieren
 COPY --from=build /workspace/target /app/target
-RUN set -eu; JAR="$(ls -1 /app/target/*.jar | head -n1)"; \
-    mv "$JAR" /app/app.jar; rm -rf /app/target
 
-# Rechte übergeben, dann als 'app' laufen
+# Jar als root umbenennen und aufräumen (sonst fehlende Schreibrechte)
+RUN set -eu; \
+    JAR="$(ls -1 /app/target/*.jar | head -n1)"; \
+    mv "$JAR" /app/app.jar; \
+    rm -rf /app/target
+
+# Rechte übergeben und erst JETZT als 'app' laufen
 RUN chown -R app:app /app
 USER app
 
