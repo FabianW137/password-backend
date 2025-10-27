@@ -1,4 +1,5 @@
 server:
+  address: 0.0.0.0
   port: ${PORT:8080}
 
 spring:
@@ -8,3 +9,12 @@ spring:
   jpa:
     open-in-view: false
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
