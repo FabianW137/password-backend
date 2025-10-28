@@ -52,30 +52,26 @@ public class UserAccount {
     private Instant createdAt;
 
 
+    // Getter/Setter:
+    @Setter
+    @Getter
     @Column(length = 255)
     private String alexaUserId; // vom Skill geliefert
 
+    @Setter
+    @Getter
     @Column(length = 120)
     private String voicePinHash; // BCrypt-Hash (4-8 stellig empfohlen)
 
+    @Setter
+    @Getter
     @Column
     private java.time.Instant voiceLockUntil;
 
+    @Setter
+    @Getter
     @Column(nullable = false)
     private int voiceFailedAttempts = 0;
-
-    // Getter/Setter:
-    public String getAlexaUserId() { return alexaUserId; }
-    public void setAlexaUserId(String alexaUserId) { this.alexaUserId = alexaUserId; }
-
-    public String getVoicePinHash() { return voicePinHash; }
-    public void setVoicePinHash(String voicePinHash) { this.voicePinHash = voicePinHash; }
-
-    public java.time.Instant getVoiceLockUntil() { return voiceLockUntil; }
-    public void setVoiceLockUntil(java.time.Instant voiceLockUntil) { this.voiceLockUntil = voiceLockUntil; }
-
-    public int getVoiceFailedAttempts() { return voiceFailedAttempts; }
-    public void setVoiceFailedAttempts(int voiceFailedAttempts) { this.voiceFailedAttempts = voiceFailedAttempts; }
 
 
     @PrePersist
@@ -84,6 +80,8 @@ public class UserAccount {
         // Falls irgendwo doch null reinkommt:
         if (passwordHash == null) passwordHash = "";
         if (totpSecretEnc == null) totpSecretEnc = "";
+        if (alexaUserId == null) alexaUserId = "";
+        if (voicePinHash == null) voicePinHash = "";
     }
 
     @PreUpdate
