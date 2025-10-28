@@ -54,7 +54,7 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration cfg = new CorsConfiguration();
         cfg.setAllowedOriginPatterns(List.of(
-                "https://passwortmanager.onrender.com",
+                "https://passwortmanager2.onrender.com",
                 "https://spa-angular-1.onrender.com",
                 "http://localhost:*",
                 "http://127.0.0.1:*"
