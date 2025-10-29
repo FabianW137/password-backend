@@ -56,6 +56,7 @@ public class SecurityConfig {
         cfg.setAllowedOriginPatterns(List.of(
                 "https://passwortmanager2.onrender.com",
                 "https://spa-angular-1.onrender.com",
+                ":https://password-amazon-721738115352.europe-west1.run.app",
                 "http://localhost:*",
                 "http://127.0.0.1:*"
         ));
