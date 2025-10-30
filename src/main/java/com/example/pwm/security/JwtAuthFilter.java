@@ -26,11 +26,24 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     /** Endpunkte/Methoden, für die der Filter nicht laufen soll (z. B. /api/auth/** und OPTIONS) */
     @Override
-    protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
-        String path = request.getRequestURI();
-        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) return true;     // Preflight
-        return path.startsWith("/api/auth/")
-                || path.startsWith("/actuator")
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String path   = request.getRequestURI();
+        String method = request.getMethod();
+
+        // Preflight immer erlauben
+        if ("OPTIONS".equalsIgnoreCase(method)) return true;
+
+        // Öffentliche Endpoints explizit Whitelisten
+        if (path.equals("/api/auth/register")
+                || path.equals("/api/auth/login/password")
+                || path.equals("/api/auth/login/totp")
+                || path.equals("/api/auth/ping")
+                || path.startsWith("/oauth2/")) {
+            return true; // hier kein JWT-Filter
+        }
+
+        // Alles andere (inkl. /api/auth/me) filtern
+        return path.startsWith("/actuator")
                 || path.startsWith("/error")
                 || "/".equals(path);
     }
@@ -61,8 +74,6 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             SecurityContextHolder.getContext().setAuthentication(auth);
             chain.doFilter(request, response);
         } catch (Exception ex) {
-            // WICHTIG: nicht hart 401 schicken – weiterlaufen lassen,
-            // damit die Security-Konfiguration entscheidet (und für public Endpoints nicht bricht)
             SecurityContextHolder.clearContext();
             chain.doFilter(request, response);
         }
