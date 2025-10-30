@@ -230,6 +230,21 @@ public class AuthController {
         return ResponseEntity.ok(Map.of("token", token));
     }
 
+    @GetMapping("/me")
+    public Map<String, Object> me(org.springframework.security.core.Authentication auth) {
+        java.util.UUID userId = (java.util.UUID) auth.getPrincipal();
+        var u = users.findById(userId).orElseThrow();
+
+        boolean alexaLinked = u.getAlexaUserId() != null && !u.getAlexaUserId().isBlank();
+        boolean voicePinSet = u.getVoicePinHash() != null && !u.getVoicePinHash().isBlank();
+
+        return java.util.Map.of(
+                "email", u.getEmail(),
+                "alexaLinked", alexaLinked,
+                "voicePinSet", voicePinSet
+        );
+    }
+
     /** Einfacher Healthcheck für das Frontend. */
     @GetMapping("/ping")
     public Map<String, Object> ping() {
