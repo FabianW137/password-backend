@@ -25,42 +25,39 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     }
 
     /** Endpunkte/Methoden, für die der Filter nicht laufen soll (z. B. /api/auth/** und OPTIONS) */
+    // JwtAuthFilter.java
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        String path   = request.getRequestURI();
-        String method = request.getMethod();
+        String p = request.getRequestURI();
+        String m = request.getMethod();
 
-        // Preflight immer erlauben
-        if ("OPTIONS".equalsIgnoreCase(method)) return true;
+        if ("OPTIONS".equalsIgnoreCase(m)) return true; // CORS Preflight
 
-        // Öffentliche Endpoints explizit Whitelisten
-        if (path.equals("/api/auth/register")
-                || path.equals("/api/auth/login/password")
-                || path.equals("/api/auth/login/totp")
-                || path.equals("/api/auth/ping")
-                || path.startsWith("/oauth2/")) {
-            return true; // hier kein JWT-Filter
-        }
-
-        // Alles andere (inkl. /api/auth/me) filtern
-        return path.startsWith("/actuator")
-                || path.startsWith("/error")
-                || "/".equals(path);
+        // Nur die öffentlichen Auth-Endpunkte vom Filter ausnehmen
+        return p.equals("/api/auth/register")
+                || p.equals("/api/auth/login")
+                || p.equals("/api/auth/totp-verify")
+                || p.equals("/api/auth/ping")
+                || p.startsWith("/oauth2/");
     }
 
-    // JwtAuthFilter.java
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
 
         final String uri = request.getRequestURI();
-        // Auth-Endpoints nie "vorab" per JWT blockieren
-        if (uri.equals("/api/auth") || uri.startsWith("/api/auth/")) {
+
+        // Spiegelbildlich dieselbe Whitelist – NICHT pauschal /api/auth/**
+        if (uri.equals("/api/auth/register")
+                || uri.equals("/api/auth/login")
+                || uri.equals("/api/auth/totp-verify")
+                || uri.equals("/api/auth/ping")
+                || uri.startsWith("/oauth2/")) {
             chain.doFilter(request, response);
             return;
         }
 
-        final String header = request.getHeader(HttpHeaders.AUTHORIZATION);
+        final String header = request.getHeader(org.springframework.http.HttpHeaders.AUTHORIZATION);
         if (header == null || !header.startsWith("Bearer ")) {
             chain.doFilter(request, response);
             return;
@@ -68,15 +65,16 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
         try {
             final String token = header.substring("Bearer ".length()).trim();
-            final java.util.UUID uid = jwt.parseUserId(token);
-            var auth = new UsernamePasswordAuthenticationToken(uid, null, List.of());
-            auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-            SecurityContextHolder.getContext().setAuthentication(auth);
+            final java.util.UUID uid = jwt.parseUserId(token); // prüft Signatur & exp
+            var auth = new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(uid, null, java.util.List.of());
+            auth.setDetails(new org.springframework.security.web.authentication.WebAuthenticationDetailsSource().buildDetails(request));
+            org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(auth);
             chain.doFilter(request, response);
         } catch (Exception ex) {
-            SecurityContextHolder.clearContext();
+            org.springframework.security.core.context.SecurityContextHolder.clearContext();
             chain.doFilter(request, response);
         }
     }
+
 
 }
