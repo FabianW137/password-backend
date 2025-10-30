@@ -32,13 +32,12 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> {})
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                // SecurityConfig.java
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers("/actuator/health", "/api/auth/**", "/error", "/").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/vault/**").authenticated()
-                        .requestMatchers(HttpMethod.POST, "/api/vault/**").authenticated()
-                        .requestMatchers(HttpMethod.PUT, "/api/vault/**").authenticated()
-                        .requestMatchers(HttpMethod.DELETE, "/api/vault/**").authenticated()
+                        .requestMatchers("/actuator/health", "/error", "/").permitAll()
+                        .requestMatchers("/api/auth/register", "/api/auth/login", "/api/auth/totp-verify", "/api/auth/ping", "/oauth2/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/auth/me").authenticated()
                         .anyRequest().permitAll()
                 )
                 .exceptionHandling(h -> h.authenticationEntryPoint((req, res, ex) -> {
