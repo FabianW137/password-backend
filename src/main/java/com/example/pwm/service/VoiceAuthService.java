@@ -91,14 +91,19 @@ public class VoiceAuthService {
 
     @Transactional
     public Map<String, Object> verifyFromAlexa(String code, String pin, String alexaUserId, String deviceId) {
+        // --- Neu: Normalisierung ---
+        String normCode = code == null ? "" : code.replaceAll("\\D+", ""); // nur Ziffern
+        String normPin  = pin  == null ? "" : pin.replaceAll("\\D+", "");  // nur Ziffern
+
         // User anhand alexaUserId
         UserAccount user = users.findAll().stream()
                 .filter(u -> alexaUserId != null && alexaUserId.equals(u.getAlexaUserId()))
                 .findFirst().orElse(null);
         if (user == null) return Map.of("success", false, "message", "no-link");
 
-        // Lock prüfen
         Instant now = Instant.now();
+
+        // Lock prüfen
         if (user.getVoiceLockUntil() != null && user.getVoiceLockUntil().isAfter(now)) {
             return Map.of("success", false, "message", "locked");
         }
@@ -107,7 +112,7 @@ public class VoiceAuthService {
         if (user.getVoicePinHash() == null || user.getVoicePinHash().isBlank()) {
             return Map.of("success", false, "message", "no-pin");
         }
-        boolean pinOk = encoder.matches(pin == null ? "" : pin, user.getVoicePinHash());
+        boolean pinOk = encoder.matches(normPin, user.getVoicePinHash());
         if (!pinOk) {
             int fails = user.getVoiceFailedAttempts() + 1;
             user.setVoiceFailedAttempts(fails);
@@ -119,24 +124,27 @@ public class VoiceAuthService {
             return Map.of("success", false, "message", "bad-pin");
         }
 
-        // Challenge suchen
-        Optional<VoiceChallenge> optCh = challenges.findFirstByUserAndCodeAndVerifiedFalseAndExpiresAtAfter(user, code, now);
+        // Challenge suchen (unverifiziert + nicht abgelaufen) – mit normalisiertem Code
+        Optional<VoiceChallenge> optCh =
+                challenges.findFirstByUserAndCodeAndVerifiedFalseAndExpiresAtAfter(user, normCode, now);
         if (optCh.isEmpty()) {
             return Map.of("success", false, "message", "bad-code");
         }
 
+        // Verifizieren
         VoiceChallenge ch = optCh.get();
         ch.setVerified(true);
         ch.setVerifiedAt(now);
         ch.setDeviceId(deviceId);
         challenges.save(ch);
 
-        // Fehlversuche zurücksetzen
+        // Fehlversuche resetten
         user.setVoiceFailedAttempts(0);
         users.save(user);
 
         return Map.of("success", true, "message", "ok");
     }
+
 
     @Transactional(readOnly = true)
     public boolean hasVerifiedChallenge(UUID userId) {
