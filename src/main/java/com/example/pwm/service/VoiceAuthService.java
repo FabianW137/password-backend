@@ -25,7 +25,7 @@ public class VoiceAuthService {
     private final VoiceChallengeRepository challenges;
     private final PasswordEncoder encoder;
     private final SecureRandom rnd = new SecureRandom();
-
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(VoiceAuthService.class);
     // Policy
     private static final Duration LINK_TTL = Duration.ofMinutes(10);
     private static final Duration CHALLENGE_TTL = Duration.ofMinutes(3);
@@ -91,22 +91,38 @@ public class VoiceAuthService {
 
     @Transactional
     public Map<String, Object> verifyFromAlexa(String code, String pin, String alexaUserId, String deviceId) {
-        // User anhand alexaUserId
+        // Sensible Werte maskieren
+        final String maskedCode = (code == null) ? "null"
+                : (code.length() <= 2 ? "**" : "**" + code.substring(code.length() - 2));
+
+        log.debug("voice.verify start alexaUserId={} deviceId={} code={}", alexaUserId, deviceId, maskedCode);
+
+        // User anhand der Alexa-UserId
         UserAccount user = users.findAll().stream()
                 .filter(u -> alexaUserId != null && alexaUserId.equals(u.getAlexaUserId()))
                 .findFirst().orElse(null);
-        if (user == null) return Map.of("success", false, "message", "no-link");
+
+        if (user == null) {
+            log.debug("voice.verify result=no-link alexaUserId={}", alexaUserId);
+            return Map.of("success", false, "message", "no-link");
+        }
+
+        java.util.UUID uid = user.getId();
+        java.time.Instant now = java.time.Instant.now();
 
         // Lock prüfen
-        Instant now = Instant.now();
         if (user.getVoiceLockUntil() != null && user.getVoiceLockUntil().isAfter(now)) {
+            log.debug("voice.verify result=locked uid={} until={}", uid, user.getVoiceLockUntil());
             return Map.of("success", false, "message", "locked");
         }
 
-        // PIN prüfen
+        // PIN vorhanden?
         if (user.getVoicePinHash() == null || user.getVoicePinHash().isBlank()) {
+            log.debug("voice.verify result=no-pin uid={}", uid);
             return Map.of("success", false, "message", "no-pin");
         }
+
+        // PIN prüfen
         boolean pinOk = encoder.matches(pin == null ? "" : pin, user.getVoicePinHash());
         if (!pinOk) {
             int fails = user.getVoiceFailedAttempts() + 1;
@@ -114,17 +130,24 @@ public class VoiceAuthService {
             if (fails >= MAX_ATTEMPTS) {
                 user.setVoiceLockUntil(now.plus(LOCK_DURATION));
                 user.setVoiceFailedAttempts(0);
+                log.debug("voice.verify result=bad-pin uid={} fails={} -> lockedUntil={}", uid, fails, user.getVoiceLockUntil());
+            } else {
+                log.debug("voice.verify result=bad-pin uid={} fails={}", uid, fails);
             }
             users.save(user);
             return Map.of("success", false, "message", "bad-pin");
         }
 
-        // Challenge suchen
-        Optional<VoiceChallenge> optCh = challenges.findFirstByUserAndCodeAndVerifiedFalseAndExpiresAtAfter(user, code, now);
+        // Challenge suchen (richtiges User-Match, unverifiziert, nicht abgelaufen)
+        java.util.Optional<VoiceChallenge> optCh =
+                challenges.findFirstByUserAndCodeAndVerifiedFalseAndExpiresAtAfter(user, code, now);
+
         if (optCh.isEmpty()) {
+            log.debug("voice.verify result=bad-code uid={} code={}", uid, maskedCode);
             return Map.of("success", false, "message", "bad-code");
         }
 
+        // Challenge verifizieren
         VoiceChallenge ch = optCh.get();
         ch.setVerified(true);
         ch.setVerifiedAt(now);
@@ -134,6 +157,9 @@ public class VoiceAuthService {
         // Fehlversuche zurücksetzen
         user.setVoiceFailedAttempts(0);
         users.save(user);
+
+        log.debug("voice.verify result=ok uid={} challengeId={} deviceId={} expiresAt={}",
+                uid, ch.getId(), deviceId, ch.getExpiresAt());
 
         return Map.of("success", true, "message", "ok");
     }
