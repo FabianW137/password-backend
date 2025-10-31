@@ -35,7 +35,7 @@ public class VoiceChallenge {
     @Column(nullable = false)
     private boolean verified;
 
-    @Column(length = 200)
+    @Column(length = 512)
     private String deviceId; // aus dem Alexa-Request
 
     @Column(nullable = false)

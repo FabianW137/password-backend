@@ -55,7 +55,7 @@ public class UserAccount {
     // Getter/Setter:
     @Setter
     @Getter
-    @Column(length = 255)
+    @Column(length = 512)
     private String alexaUserId; // vom Skill geliefert
 
     @Setter
