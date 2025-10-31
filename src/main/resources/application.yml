@@ -18,3 +18,11 @@ management:
     health:
       probes:
         enabled: true
+
+        logging:
+          level:
+            com.example.pwm: DEBUG
+            org.springframework.web: INFO
+            # optional – nur kurzfristig!
+            org.hibernate.SQL: DEBUG
+            org.hibernate.type.descriptor.sql.BasicBinder: TRACE
