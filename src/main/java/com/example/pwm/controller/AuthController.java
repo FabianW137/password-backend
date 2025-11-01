@@ -4,20 +4,19 @@ import com.example.pwm.entity.UserAccount;
 import com.example.pwm.repo.UserAccountRepository;
 import com.example.pwm.service.CryptoService;
 import com.example.pwm.service.JwtService;
-import org.springframework.context.annotation.Bean;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
-import java.net.URI;
+import java.net.URLEncoder;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
+
 
 @RestController
 @RequestMapping("/api/auth")
@@ -29,6 +28,11 @@ public class AuthController {
     private final CryptoService crypto;
     private final SecureRandom rnd = new SecureRandom();
 
+   
+    private static final int FAILS_PER_TIER = 3;
+    private static final Duration BASE_LOCK = Duration.ofMinutes(5);
+    private static final Duration MAX_LOCK = Duration.ofHours(24);
+
     public AuthController(UserAccountRepository users,
                           PasswordEncoder encoder,
                           JwtService jwt,
@@ -39,28 +43,23 @@ public class AuthController {
         this.crypto = crypto;
     }
 
-    /* -------------------- DTOs -------------------- */
 
     public record RegisterReq(String email, String password) {}
     public record LoginReq(String email, String password) {}
     public record TmpVerifyReq(String tmpToken, String code) {}
 
-    /* -------------------- Helpers -------------------- */
 
     private static boolean looksLikeEmail(String v) {
         return v != null && v.matches("(?i)^\\S+@\\S+\\.\\S+$");
     }
 
-    /** 20 zufällige Bytes → Base32 (RFC4648, ohne Padding) */
     private String newTotpSecretBase32() {
         byte[] raw = new byte[20];
         rnd.nextBytes(raw);
         return base32Encode(raw);
     }
 
-    /** otpauth:// URI für die Provisionierung (Google Authenticator kompatibel). */
     private String buildOtpUri(String issuer, String accountEmail, String base32Secret) {
-        // Label: issuer:account – URL-encoden!
         String label = url(issuer) + ":" + url(accountEmail);
         return "otpauth://totp/" + label +
                 "?secret=" + base32Secret +
@@ -69,13 +68,11 @@ public class AuthController {
     }
 
     private static String url(String s) {
-        return java.net.URLEncoder.encode(s, StandardCharsets.UTF_8);
+        return URLEncoder.encode(s, StandardCharsets.UTF_8);
     }
 
-    /* -------------------- TOTP (HMAC-SHA1) -------------------- */
-
-    @SuppressWarnings("SameParameterValue")
     private static String base32Encode(byte[] data) {
+        if (data == null || data.length == 0) return "";
         final char[] ALPH = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567".toCharArray();
         StringBuilder out = new StringBuilder((data.length * 8 + 4) / 5);
         int buffer = 0, bitsLeft = 0;
@@ -83,14 +80,12 @@ public class AuthController {
             buffer = (buffer << 8) | (b & 0xFF);
             bitsLeft += 8;
             while (bitsLeft >= 5) {
-                int idx = (buffer >> (bitsLeft - 5)) & 0x1F;
+                out.append(ALPH[(buffer >> (bitsLeft - 5)) & 31]);
                 bitsLeft -= 5;
-                out.append(ALPH[idx]);
             }
         }
         if (bitsLeft > 0) {
-            int idx = (buffer << (5 - bitsLeft)) & 0x1F;
-            out.append(ALPH[idx]);
+            out.append(ALPH[(buffer << (5 - bitsLeft)) & 31]);
         }
         return out.toString();
     }
@@ -120,139 +115,169 @@ public class AuthController {
         return arr;
     }
 
-    /** Berechnet 6-stelligen TOTP-Code (SHA1, 30s). */
-    private static int totpNow(byte[] key, long unixTimeSeconds) {
-        long step = unixTimeSeconds / 30L;
-        byte[] msg = ByteBuffer.allocate(8).putLong(step).array();
+    private static int hotp(byte[] key, long counter) {
         try {
             javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA1");
             mac.init(new javax.crypto.spec.SecretKeySpec(key, "HmacSHA1"));
+            byte[] msg = ByteBuffer.allocate(8).putLong(counter).array();
             byte[] h = mac.doFinal(msg);
-            int offset = h[h.length - 1] & 0x0F;
-            int bin =
-                    ((h[offset] & 0x7F) << 24) |
-                            ((h[offset + 1] & 0xFF) << 16) |
-                            ((h[offset + 2] & 0xFF) << 8) |
-                            (h[offset + 3] & 0xFF);
+            int off = h[h.length - 1] & 0x0F;
+            int bin = ((h[off] & 0x7F) << 24) | ((h[off + 1] & 0xFF) << 16) |
+                      ((h[off + 2] & 0xFF) << 8) | (h[off + 3] & 0xFF);
             return bin % 1_000_000;
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
 
-    private static boolean totpMatches(byte[] key, String code) {
-        if (code == null || !code.matches("^\\d{6}$")) return false;
-        int want = Integer.parseInt(code);
-        long now = Instant.now().getEpochSecond();
-        // Fenster: -1 .. +1 Schritt
-        for (int w = -1; w <= 1; w++) {
-            int calc = totpNow(key, now + (w * 30L));
-            if (calc == want) return true;
+    private static int totp(byte[] key, long ts, long stepSeconds) {
+        long counter = Math.floorDiv(ts, stepSeconds);
+        return hotp(key, counter);
+    }
+
+    private static boolean totpMatches(byte[] key, int code, long ts, long stepSeconds, int window) {
+        for (int w = -window; w <= window; w++) {
+            if (totp(key, ts + w * stepSeconds, stepSeconds) == code) return true;
         }
         return false;
     }
 
-    /* -------------------- Endpoints -------------------- */
 
-    /** Registrierung: erzeugt TOTP-Secret, speichert verschlüsselt. */
+    private static Duration lockDurationForTier(int tier) {
+        if (tier <= 1) return BASE_LOCK;
+        Duration d = BASE_LOCK.multipliedBy(1L << (tier - 1));
+        if (d.compareTo(MAX_LOCK) > 0) return MAX_LOCK;
+        return d;
+    }
+
+    private static long secondsUntil(Instant ts) {
+        long s = Duration.between(Instant.now(), ts).getSeconds();
+        return Math.max(0, s);
+    }
+
     @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody RegisterReq req) {
-        if (req == null || !looksLikeEmail(req.email()) || req.password() == null || req.password().isBlank()) {
+        if (req == null || req.email() == null || req.password() == null) {
             return ResponseEntity.badRequest().body(Map.of("error", "email und password sind erforderlich"));
         }
-        String email = req.email().trim().toLowerCase(Locale.ROOT);
-
+        String email = req.email().trim();
+        if (!looksLikeEmail(email)) {
+            return ResponseEntity.badRequest().body(Map.of("error", "ungültige E-Mail"));
+        }
         if (users.existsByEmailIgnoreCase(email)) {
-            return ResponseEntity.status(HttpStatus.CONFLICT)
-                    .body(Map.of("error", "E-Mail bereits vergeben"));
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", "E-Mail bereits registriert"));
         }
 
-        String totpSecret = newTotpSecretBase32();
-        String totpUri = buildOtpUri("PasswortManager", email, totpSecret);
-
+        String secretB32 = newTotpSecretBase32();
         UserAccount u = new UserAccount();
         u.setEmail(email);
         u.setPasswordHash(encoder.encode(req.password()));
-        u.setTotpSecretEnc(crypto.encrypt(totpSecret));     // << verschlüsselt ablegen
+        u.setTotpSecretEnc(crypto.encrypt(secretB32));
         u.setTotpVerified(false);
-
+        u.setVoiceFailedAttempts(0);
+        u.setVoiceLockUntil(null);
         users.save(u);
 
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("id", u.getId());
-        body.put("email", u.getEmail());
-        body.put("totpProvisioningUri", totpUri);
-        body.put("totpSecret", totpSecret);
-
-        return ResponseEntity.created(URI.create("/api/auth/users/" + u.getId())).body(body);
+        String uri = buildOtpUri("PWM", email, secretB32);
+        return ResponseEntity.created(URI.create("/api/auth/register"))
+                .body(Map.of("otpauthUrl", uri, "secretBase32", secretB32));
     }
 
-    /** Schritt 1: Login → tmpToken (5 Minuten). */
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginReq req) {
         if (req == null || req.email() == null || req.password() == null) {
             return ResponseEntity.badRequest().body(Map.of("error", "email und password sind erforderlich"));
         }
         String email = req.email().trim();
+        String pw = req.password();
+
         UserAccount u = users.findByEmail(email).orElse(null);
-        if (u == null || !encoder.matches(req.password(), u.getPasswordHash())) {
+
+        if (u != null && u.getVoiceLockUntil() != null) {
+            Instant lockUntil = u.getVoiceLockUntil();
+            if (lockUntil.isAfter(Instant.now())) {
+                long left = secondsUntil(lockUntil);
+                return ResponseEntity.status(429) 
+                        .header("Retry-After", String.valueOf(left))
+                        .body(Map.of(
+                                "error", "locked",
+                                "message", "Zu viele Fehlversuche. Bitte später erneut versuchen.",
+                                "retryAfterSeconds", left
+                        ));
+            }
+        }
+
+        if (u == null || !encoder.matches(pw, u.getPasswordHash())) {
+            if (u != null) {
+                int fails = (u.getVoiceFailedAttempts() == 0 ? 0 : u.getVoiceFailedAttempts()) + 1;
+                u.setVoiceFailedAttempts(fails);
+
+                if (fails % FAILS_PER_TIER == 0) {
+                    int tier = fails / FAILS_PER_TIER;         
+                    Duration lock = lockDurationForTier(tier);    
+                    u.setVoiceLockUntil(Instant.now().plus(lock));
+                }
+                users.save(u);
+            }
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Bad credentials"));
         }
+
+        u.setVoiceFailedAttempts(0);
+        u.setVoiceLockUntil(null);
+        users.save(u);
+
         String tmp = jwt.issueTmpToken(u.getId(), Duration.ofMinutes(5));
         return ResponseEntity.ok(Map.of("tmpToken", tmp, "userId", u.getId(), "email", u.getEmail()));
     }
 
-    /** Schritt 2: TOTP verifizieren → endgültiges JWT (12h). */
     @PostMapping("/totp-verify")
     public ResponseEntity<?> verify(@RequestBody TmpVerifyReq req) {
         if (req == null || req.tmpToken() == null || req.code() == null) {
             return ResponseEntity.badRequest().body(Map.of("error", "tmpToken und code sind erforderlich"));
         }
-        // tmp:<uuid> prüfen & User laden
-        UUID uid = jwt.requireUid(req.tmpToken()); // akzeptiert auch tmp:…
+
+        UUID uid;
+        try {
+            uid = jwt.requireUid(req.tmpToken()); 
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Bad credentials"));
+        }
+
         UserAccount u = users.findById(uid).orElse(null);
-        if (u == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Bad credentials"));
+        if (u == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Bad credentials"));
+        }
 
         String secretB32 = crypto.decrypt(u.getTotpSecretEnc());
         byte[] key = base32Decode(secretB32);
-
-        if (!totpMatches(key, req.code())) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "TOTP ungültig"));
+        int provided;
+        try {
+            provided = Integer.parseInt(req.code().replaceAll("\\D+", ""));
+        } catch (NumberFormatException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Bad credentials"));
+        }
+        boolean ok = totpMatches(key, provided, Instant.now().getEpochSecond(), 30, 1);
+        if (!ok) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Bad credentials"));
         }
 
-        // optional als verifiziert markieren
-        if (!Boolean.TRUE.equals(u.getTotpVerified())) {
-            u.setTotpVerified(true);
-            users.save(u);
-        }
+        u.setTotpVerified(true);
+        users.save(u);
 
         String token = jwt.issueToken(u.getId(), Duration.ofHours(12));
-        return ResponseEntity.ok(Map.of("token", token));
-    }
-
-    // in AuthController.java
-    @GetMapping("/me")
-    public ResponseEntity<?> me(org.springframework.security.core.Authentication auth) {
-        if (auth == null || auth.getPrincipal() == null) {
-            return ResponseEntity.status(401).body(Map.of("error", "unauthorized"));
-        }
-        java.util.UUID userId = (java.util.UUID) auth.getPrincipal();
-        var u = users.findById(userId).orElseThrow();
-
         boolean alexaLinked = u.getAlexaUserId() != null && !u.getAlexaUserId().isBlank();
-        boolean voicePinSet = u.getVoicePinHash() != null && !u.getVoicePinHash().isBlank();
-
+        boolean voicePinSet  = u.getVoicePinHash() != null && !u.getVoicePinHash().isBlank();
         return ResponseEntity.ok(Map.of(
+                "token", token,
                 "email", u.getEmail(),
                 "alexaLinked", alexaLinked,
                 "voicePinSet", voicePinSet
         ));
     }
 
-
-    /** Einfacher Healthcheck für das Frontend. */
     @GetMapping("/ping")
     public Map<String, Object> ping() {
         return Map.of("ok", true, "ts", Instant.now().toString());
     }
 }
+
