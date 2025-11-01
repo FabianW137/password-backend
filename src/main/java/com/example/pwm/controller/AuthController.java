@@ -276,6 +276,24 @@ public class AuthController {
         ));
     }
 
+    @GetMapping("/me")
+    public ResponseEntity<?> me(org.springframework.security.core.Authentication auth) {
+        if (auth == null || auth.getPrincipal() == null) {
+            return ResponseEntity.status(401).body(Map.of("error", "unauthorized"));
+        }
+        java.util.UUID userId = (java.util.UUID) auth.getPrincipal();
+        var u = users.findById(userId).orElseThrow();
+
+        boolean alexaLinked = u.getAlexaUserId() != null && !u.getAlexaUserId().isBlank();
+        boolean voicePinSet = u.getVoicePinHash() != null && !u.getVoicePinHash().isBlank();
+
+        return ResponseEntity.ok(Map.of(
+                "email", u.getEmail(),
+                "alexaLinked", alexaLinked,
+                "voicePinSet", voicePinSet
+        ));
+    }
+
     @GetMapping("/ping")
     public Map<String, Object> ping() {
         return Map.of("ok", true, "ts", Instant.now().toString());
