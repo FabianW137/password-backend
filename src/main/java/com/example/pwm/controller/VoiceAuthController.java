@@ -4,6 +4,8 @@ import com.example.pwm.entity.UserAccount;
 import com.example.pwm.repo.UserAccountRepository;
 import com.example.pwm.service.JwtService;
 import com.example.pwm.service.VoiceAuthService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -17,6 +19,8 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api")
 public class VoiceAuthController {
+
+    private static final Logger log = LoggerFactory.getLogger(VoiceAuthController.class);
 
     private final VoiceAuthService voice;
     private final JwtService jwt;
@@ -56,6 +60,8 @@ public class VoiceAuthController {
     // 4) Alexa-Skill Verifikation (der Skill-Code postet gegen /api/verify)
     @PostMapping("/verify")
     public Map<String,Object> verifyFromAlexa(@RequestBody VerifyReq req) {
+        log.info("Voice verify request: code={}, pin=****, alexaUserId={}, deviceId={}",
+                req.code(), req.alexaUserId(), req.deviceId());
         var res = voice.verifyFromAlexa(req.code(), req.pin(), req.alexaUserId(), req.deviceId());
         return res;
     }

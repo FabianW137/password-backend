@@ -20,6 +20,7 @@ import java.util.UUID;
 @Service
 public class VoiceAuthService {
 
+
     private final UserAccountRepository users;
     private final VoiceLinkCodeRepository linkCodes;
     private final VoiceChallengeRepository challenges;
