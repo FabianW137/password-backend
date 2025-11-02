@@ -45,9 +45,16 @@ public class VoiceAuthController {
     // 2) Alexa ruft dies auf, um die Verknüpfung herzustellen
     @PostMapping("/voice/link/complete")
     public Map<String,Object> completeLink(@RequestBody LinkReq req) {
+        // Vorab-Hinweis, falls ID bereits vergeben
+        var exists = users.findByAlexaUserId(req.alexaUserId());
+        if (exists.isPresent()) {
+            return Map.of("ok", false, "message", "alexa-id-already-linked");
+        }
         boolean ok = voice.completeLink(req.code(), req.alexaUserId());
-        return Map.of("ok", ok);
+        return ok ? Map.of("ok", true)
+                : Map.of("ok", false, "message", "invalid-or-expired");
     }
+
 
     // 3) Challenge für Voice-MFA erzeugen (User ist mit TMP-Token authentifiziert – aber unser Filter akzeptiert beide)
     @PostMapping("/voice/challenge")
@@ -60,8 +67,6 @@ public class VoiceAuthController {
     // 4) Alexa-Skill Verifikation (der Skill-Code postet gegen /api/verify)
     @PostMapping("/verify")
     public Map<String,Object> verifyFromAlexa(@RequestBody VerifyReq req) {
-        log.info("Voice verify request: code={}, pin=****, alexaUserId={}, deviceId={}",
-                req.code(), req.alexaUserId(), req.deviceId());
         var res = voice.verifyFromAlexa(req.code(), req.pin(), req.alexaUserId(), req.deviceId());
         return res;
     }
