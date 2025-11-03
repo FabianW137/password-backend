@@ -79,6 +79,7 @@ public class VoiceAuthController {
             return ResponseEntity.badRequest().body(Map.of("error", "no-verified-challenge"));
         }
         String token = jwt.issueToken(userId, Duration.ofHours(12));
+        voice.deleteAllChallengesOfUser(userId);
         return ResponseEntity.ok(Map.of("token", token));
     }
 

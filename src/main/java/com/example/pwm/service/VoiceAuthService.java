@@ -166,4 +166,14 @@ public class VoiceAuthService {
         UserAccount u = users.findById(userId).orElseThrow();
         return challenges.findFirstByUserAndVerifiedTrueAndExpiresAtAfter(u, Instant.now()).isPresent();
     }
+    @Transactional
+    public void deleteAllChallengesOfUser(UUID userId) {
+        UserAccount u = users.findById(userId).orElseThrow();
+        // Minimal-invasiv ohne neue Repo-Methoden:
+        challenges.findAll()
+                .stream()
+                .filter(ch -> ch.getUser().getId().equals(u.getId()))
+                .forEach(challenges::delete);
+    }
+
 }
