@@ -10,26 +10,18 @@ import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.util.Base64;
 
-/**
- * Symmetrische Verschlüsselung mit AES/GCM (AES-256).
- * Erwartet einen 32-Byte Schlüssel als Base64 (z. B. via ENV APP_ENCRYPTION_KEY).
- *
- * Generiere einen Key z. B. mit:  openssl rand -base64 32
- */
+
 @Service
 public class CryptoService {
 
     private static final String TRANSFORMATION = "AES/GCM/NoPadding";
-    private static final int GCM_TAG_BITS = 128;     // 16 Bytes Auth-Tag
-    private static final int IV_LEN = 12;            // 12 Bytes IV (empfohlen für GCM)
+    private static final int GCM_TAG_BITS = 128;     
+    private static final int IV_LEN = 12;            
 
-    private final byte[] key;                        // 32 Bytes (AES-256)
+    private final byte[] key;                       
     private final SecureRandom rnd = new SecureRandom();
 
-    /**
-     * Liest den Base64-Schlüssel aus Property oder ENV (Fallback).
-     * Property-Key: app.encryption.key-b64  |  ENV: APP_ENCRYPTION_KEY
-     */
+
     public CryptoService(
             @Value("${app.encryption.key-b64:${APP_ENCRYPTION_KEY:}}") String keyB64) {
         if (keyB64 == null || keyB64.isBlank()) {
@@ -42,7 +34,6 @@ public class CryptoService {
         this.key = raw;
     }
 
-    /** Verschlüsselt Klartext zu Base64(IV || Ciphertext+Tag). */
     public String encrypt(String plaintext) {
         if (plaintext == null) return null;
         try {
@@ -58,7 +49,6 @@ public class CryptoService {
 
             byte[] ct = cipher.doFinal(plaintext.getBytes(StandardCharsets.UTF_8));
 
-            // IV vorn anhängen: [ IV | CT+TAG ]
             byte[] out = new byte[iv.length + ct.length];
             System.arraycopy(iv, 0, out, 0, iv.length);
             System.arraycopy(ct, 0, out, iv.length, ct.length);
@@ -69,7 +59,6 @@ public class CryptoService {
         }
     }
 
-    /** Entschlüsselt Base64(IV || Ciphertext+Tag) zu Klartext. */
     public String decrypt(String b64) {
         if (b64 == null) return null;
         try {

@@ -51,7 +51,6 @@ public class VoiceAuthService {
     @Transactional
     public String createLinkCode(UUID userId) {
         UserAccount u = users.findById(userId).orElseThrow();
-        // Aufräumen
         linkCodes.deleteByExpiresAtBefore(Instant.now());
         VoiceLinkCode c = new VoiceLinkCode();
         c.setUser(u);
@@ -71,10 +70,9 @@ public class VoiceAuthService {
         var user = link.getUser();
         if (alexaUserId == null || alexaUserId.isBlank()) return false;
 
-        // 1) Schneller Check (User bereits mit dieser Alexa-ID?)
         var existing = users.findByAlexaUserId(alexaUserId);
         if (existing.isPresent() && !existing.get().getId().equals(user.getId())) {
-            return false; // wird unten in Controller als "alexa-id-already-linked" kommuniziert
+            return false; 
         }
 
         try {
@@ -83,7 +81,6 @@ public class VoiceAuthService {
             linkCodes.delete(link);
             return true;
         } catch (org.springframework.dao.DataIntegrityViolationException ex) {
-            // 2) Harte DB-Schranke hat gegriffen (Race-Condition o.ä.)
             return false;
         }
     }

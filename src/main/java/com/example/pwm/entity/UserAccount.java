@@ -16,7 +16,6 @@ import java.util.UUID;
 })
 public class UserAccount {
 
-    // --- Getter/Setter ---
     @Setter
     @Getter
     @Id
@@ -30,7 +29,6 @@ public class UserAccount {
     @Column(nullable = false, unique = true, length = 320)
     private String email;
 
-    // Standardwert leer + DB-Default (für Schema-Generierung)
     @Getter
     @Setter
     @Column(name = "password_hash", nullable = false, length = 255)
@@ -52,16 +50,15 @@ public class UserAccount {
     private Instant createdAt;
 
 
-    // Getter/Setter:
     @Setter
     @Getter
     @Column(name = "alexa_user_id",length = 512)
-    private String alexaUserId; // vom Skill geliefert
+    private String alexaUserId;
 
     @Setter
     @Getter
     @Column(length = 120)
-    private String voicePinHash; // BCrypt-Hash (4-8 stellig empfohlen)
+    private String voicePinHash; 
 
     @Setter
     @Getter
@@ -77,7 +74,6 @@ public class UserAccount {
     @PrePersist
     void prePersist() {
         if (createdAt == null) createdAt = Instant.now();
-        // Falls irgendwo doch null reinkommt:
         if (passwordHash == null) passwordHash = "";
         if (totpSecretEnc == null) totpSecretEnc = "";
         if (alexaUserId == null) alexaUserId = "";

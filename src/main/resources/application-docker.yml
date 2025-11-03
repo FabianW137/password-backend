@@ -1,11 +1,9 @@
 spring:
   datasource:
-    # Erwartet, dass du SPRING_DATASOURCE_* ODER DATABASE_URL setzt.
     url: ${SPRING_DATASOURCE_URL:${DATABASE_URL}}
     username: ${SPRING_DATASOURCE_USERNAME:${JDBC_DATABASE_USERNAME:}}
     password: ${SPRING_DATASOURCE_PASSWORD:${JDBC_DATABASE_PASSWORD:}}
     hikari:
-      # Bricht den App-Start NICHT ab, falls die DB (noch) nicht erreichbar ist.
       initializationFailTimeout: 0
       connectionTimeout: 20000
   jpa:

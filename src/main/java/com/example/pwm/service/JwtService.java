@@ -59,11 +59,7 @@ public class JwtService {
         return JWT.require(alg).build().verify(token).getSubject();
     }
 
-    /**
-     * Prüft Signatur/Ablauf und liefert die Benutzer-UUID aus dem Subject.
-     * Akzeptiert auch Subjects der Form "tmp:<uuid>" und schneidet "tmp:" ab.
-     * Wirft eine IllegalArgumentException, wenn kein/ungültiges Subject vorliegt.
-     */
+
     public UUID requireUid(String token) {
         DecodedJWT verified = JWT.require(alg).build().verify(token); // verifiziert Signatur & Ablauf
         String sub = verified.getSubject();

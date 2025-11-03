@@ -33,7 +33,6 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
         if ("OPTIONS".equalsIgnoreCase(m)) return true; // CORS Preflight
 
-        // Nur die öffentlichen Auth-Endpunkte vom Filter ausnehmen
         return p.equals("/api/auth/register")
                 || p.equals("/api/auth/login")
                 || p.equals("/api/auth/totp-verify")
@@ -47,7 +46,6 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
         final String uri = request.getRequestURI();
 
-        // Spiegelbildlich dieselbe Whitelist – NICHT pauschal /api/auth/**
         if (uri.equals("/api/auth/register")
                 || uri.equals("/api/auth/login")
                 || uri.equals("/api/auth/totp-verify")
